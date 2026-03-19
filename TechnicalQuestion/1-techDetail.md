@@ -86,3 +86,14 @@ Append mode
 > - Spark waits until window is complete + watermark passed
 > - Then only → result is appended once
 > - No updates later
+### trigger-interval
+```python
+(spark.readStream
+        .table("orders")
+    .writeStream
+        .option("checkpointLocation", checkpointPath)
+        .table("Output_Table")
+)
+```
+##### By default, if you don’t provide any trigger interval, the data will be processed every half second. This is equivalent to trigger(processingTime=”500ms") 
+
