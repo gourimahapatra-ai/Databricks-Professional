@@ -1,0 +1,72 @@
+2.2 - Streaming from Multiplex Bronze
+
+%sql
+SELECT cast(key AS STRING), cast(value AS STRING)
+FROM dbacademy.labuser13431568_1773894869.bronze_booksself
+
+LIMIT 20
+
+
+%sql
+SELECT v.*
+FROM (
+  SELECT from_json(cast(value AS STRING), "order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>") v
+  FROM  dbacademy.labuser13431568_1773894869.bronze_booksself
+  WHERE topic = "orders")
+
+
+(spark.readStream
+      .table("dbacademy.labuser13431568_1773894869.bronze_booksself")
+      .createOrReplaceTempView("bronze_tmp"))
+
+
+# Explicitly set the checkpoint location for streaming display, as implicit temporary checkpoint locations are not supported in the current workspace.
+
+orders_silver_df = spark.sql("""
+    SELECT v.*
+    FROM (
+    SELECT from_json(cast(value AS STRING), "order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>") v
+    FROM bronze_tmp
+    WHERE topic = "orders")
+""")
+
+#display(orders_silver_df, checkpointLocation = f"{dbacademy.checkpoint_path}/tmp/orders_silver_{time.time()}")
+
+
+%sql
+CREATE OR REPLACE TEMPORARY VIEW orders_silver_tmp AS
+  SELECT v.*
+  FROM (
+    SELECT from_json(cast(value AS STRING), "order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>") v
+    FROM bronze_tmp
+    WHERE topic = "orders")
+
+
+query = (spark.table("orders_silver_tmp")
+               .writeStream
+               .option("checkpointLocation", f"/Volumes/dbacademy/labuser13431568_1773894869/data/checkpointLocation/orders_silver")
+               .trigger(availableNow=True)
+               .table("dbacademy.labuser13431568_1773894869.orders_silver"))
+
+query.awaitTermination()
+
+
+from pyspark.sql import functions as F
+
+json_schema = "order_id STRING, order_timestamp Timestamp, customer_id STRING, quantity BIGINT, total BIGINT, books ARRAY<STRUCT<book_id STRING, quantity BIGINT, subtotal BIGINT>>"
+
+query = (spark.readStream.table("dbacademy.labuser13431568_1773894869.bronze_booksself")
+        .filter("topic = 'orders'")
+        .select(F.from_json(F.col("value").cast("string"), json_schema).alias("v"))
+        .select("v.*")
+     .writeStream
+        .option("checkpointLocation", f"/Volumes/dbacademy/labuser13431568_1773894869/data/checkpointLocation/orders_silver")
+        .trigger(availableNow=True)
+        .table("dbacademy.labuser13431568_1773894869.orders_silvers"))
+
+query.awaitTermination()
+
+
+%sql
+SELECT *
+FROM dbacademy.labuser13431568_1773894869.orders_silvers
