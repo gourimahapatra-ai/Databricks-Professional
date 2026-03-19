@@ -88,3 +88,8 @@ process_bronze()
 
 # MAGIC %sql
 # MAGIC SELECT COUNT(*) FROM dbacademy.labuser13431568_1773883293.bronze
+
+#Copy Second File
+spark.conf.set("fs.s3a.endpoint", "s3.eu-west-3.amazonaws.com")
+spark.conf.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider")
+dbutils.fs.cp("s3://dalhussein-courses/DE-Pro/datasets/bookstore/v1//kafka-streaming/", "/Volumes/dbacademy/labuser13431568_1773894869/data/books-updates-streaming/", True)
