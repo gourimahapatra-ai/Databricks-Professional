@@ -209,6 +209,7 @@ POST /api/2.1/jobs/runs/repair
 <details>
 The reason both hashes have the same length comes from how cryptographic hash functions are designed. SHA-256 always produces a 256-bit output, no matter how long or short the input is. This is a fundamental property of cryptographic hash functions—they map inputs of arbitrary size to a fixed-length output.
 Whether you hash "spark123" (8 characters) or "ApacheSpark111" (14 characters), SHA-256 will still generate 256 bits, typically represented as 64 hexadecimal characters. When represented as a hexadecimal string (which is standard for storing hashes), a 256-bit hash is always 64 characters long.
+ 
 ```SQL
 SELECT sha2('spark123', 256);
 92f55da1cdca0fd9811daa0bc97455c9e9e2b16d29e4e142c56e5924a1446175
@@ -226,11 +227,120 @@ For such an issue, you need to preprocess the source table to eliminate the poss
 <summary>Cluster Permission</summary>
 <details>You can configure two types of cluster permissions:
 1- The ‘Allow cluster creation’ entitlement controls your ability to create clusters.
-2- Cluster-level permissions control your ability to use and modify a specific cluster. There are four permission levels for a cluster: No Permissions, Can Attach To, Can Restart, and Can Manage. The table lists the abilities for each permission:</details>
+2- Cluster-level permissions control your ability to use and modify a specific cluster. There are four permission levels for a cluster: No Permissions, Can Attach To, Can Restart, and Can Manage. The table lists the abilities for each permission:
 <img width="870" height="587" alt="image" src="https://github.com/user-attachments/assets/3bf65f89-664d-404c-a0ec-88f7751e6cb1" />
-
+</details>
 <summary>Row filters and column masks</summary>
 <details>
 - (https://docs.databricks.com/aws/en/data-governance/unity-catalog/filters-and-masks)
 - (https://docs.databricks.com/aws/en/data-governance/unity-catalog/filters-and-masks/manually-apply)
 </details>
+
+<summary>Optimize</summary>
+<details>Delta OPTIMIZE – Complete Notes (Summary + Commands + Interview Points)
+**OPTIMIZE** improves Delta table performance by reorganizing data files.
+It mainly solves the small file problem by compacting many small files into fewer large files.
+It uses bin-packing to create evenly sized files for efficient reads.
+It does not change data, only improves storage layout and query performance.
+
+Basic Commands
+- Basic optimize:
+- OPTIMIZE table_name;
+- Optimize specific partitions:
+- OPTIMIZE table_name WHERE date >= '2024-01-01';
+- Optimize with ZORDER:
+- OPTIMIZE table_name ZORDER BY (customer_id);
+- Full table rewrite:
+- OPTIMIZE table_name FULL;
+
+### Key Features
+Supports partition-level optimization using WHERE clause
+ZORDER improves data skipping and query performance
+FULL rewrites entire table data when needed
+Idempotent operation (safe to run multiple times)
+Works only with Delta tables
+
+### When to Use
+After heavy batch inserts
+After streaming ingestion (many small files)
+When query performance degrades
+Periodic maintenance (daily/weekly)
+
+### Important Notes (Interview Focus)
+Small file problem is the primary reason for OPTIMIZE
+ZORDER is clustering, not sorting
+OPTIMIZE is an expensive operation, avoid overuse
+Prefer partition filtering instead of full table optimize
+Works well with Delta data skipping internally
+Auto Optimize / Predictive Optimization can reduce manual effort
+
+### VACUUM (Cleanup)
+Removes old unused files after OPTIMIZE:
+VACUUM table_name RETAIN 168 HOURS;
+
+### File Size Control (Databricks Runtime)
+Control output file size after OPTIMIZE using Spark config:
+spark.conf.set("spark.databricks.delta.optimize.maxFileSize", 104857600)
+Default: 1073741824 (1 GB)
+Example: 104857600 (100 MB)
+
+### File Size Tuning Notes
+Smaller files → better parallelism
+Larger files → better scan efficiency
+Tune based on workload (streaming vs batch, query patterns)
+
+### Simple Memory
+OPTIMIZE = Compact files
+ZORDER = Faster queries
+VACUUM = Cleanup storage
+File size tuning = Balance between parallelism and scan efficiency</details>
+
+<summary>Manage data quality with pipeline expectations</summary>
+<details>https://learn.microsoft.com/en-us/azure/databricks/ldp/expectations</details>
+
+<summary>Autoloader partten</summary>
+<details>https://docs.databricks.com/aws/en/ingestion/cloud-object-storage/auto-loader/patterns</details>
+
+<summary>Task Notification</summary>
+<details>https://docs.databricks.com/aws/en/jobs/notifications</details>
+
+<summary>Authorize access to Databricks resources</summary>
+<details>https://docs.databricks.com/aws/en/dev-tools/auth/#authorization-methods</details>
+
+<summary>secret access permissions</summary>
+<details>The secret access permissions are as follows:
+MANAGE - Allowed to change ACLs, and read and write to this secret scope.
+WRITE - Allowed to read and write to this secret scope.
+READ - Allowed to read this secret scope and list what secrets are available.
+Each permission level is a subset of the previous level’s permissions (that is, a principal with WRITE permission for a given scope can perform all actions that require READ permission).</details>
+
+<summary>Databricks to databricks and delta sharing </summary>
+<details>There are mainly two ways to share data using Delta Sharing:
+1- Databricks-to-Databricks sharing (D2D): it lets you share data from your Unity Catalog-enabled workspace with clients who also have access to a Unity Catalog-enabled Databricks workspace.
+This approach uses the Delta Sharing server that is built into Databricks and provides support for notebook sharing, Unity Catalog data governance, auditing, and usage tracking for both providers and recipients.
+2- Databricks open sharing protocol (D2O): It lets you share data that you manage in a Unity Catalog-enabled Databricks workspace with users on any computing platform.
+This approach also uses the Delta Sharing server that is built into Databricks and is useful when you manage data using Unity Catalog and want to share it with users who don't use Databricks or don't have access to a Unity Catalog-enabled Databricks workspace.
+So, D2D is optimized for seamless sharing within the Databricks ecosystem, whereas D2O extends interoperability to external platforms that support the open Delta Sharing protocol.</details>
+
+<summary>Auto Optimize</summary>
+<details>Auto Optimize is a functionality that allows Delta Lake to automatically compact small data files of Delta tables. This can be achieved during individual writes to the Delta table.
+Auto optimize consists of 2 complementary operations:
+- Optimized writes: with this feature enabled, Databricks attempts to write out 128 MB files for each table partition.
+- Auto compaction: this will check after an individual write, if files can further be compacted. If yes, it runs an OPTIMIZE job with 128 MB file sizes (instead of the 1 GB file size used in the standard OPTIMIZE)</details>
+
+<summary>Spark Declarative pipeline</summary>
+<details>dlt.expect_all enforces all the specified data quality rules, writes both valid and invalid records to the target table, and captures metrics about any rule violations.
+dlt.expect would not fully meet the requirements because it applies expectations individually but doesn’t automatically enforce all of them together as a group. Similarly, dlt.expect_or_drop removes individual invalid records, and dlt.expect_or_fail stops the pipeline on individual rule violations. You can group multiple expectations together and specify collective actions using the functions dlt.expect_all_or_drop, and dlt.expect_all_or_fail.
+Note: Databricks has recenlty open-sourced this solution, integrating it into the Apache Spark ecosystem under the name Spark Declarative Pipelines (SDP).</details>
+
+<summary>Static joins</summary>
+<details>Stream-static joins take advantage of Delta Lake guarantee that the latest version of the static delta table is returned each time it is queried in a join operation with a data stream.</details>
+
+<summary></summary>
+<details></details>
+<summary></summary>
+<details></details>
+
+
+
+
