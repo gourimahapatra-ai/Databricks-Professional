@@ -336,8 +336,48 @@ Note: Databricks has recenlty open-sourced this solution, integrating it into th
 <summary>Static joins</summary>
 <details>Stream-static joins take advantage of Delta Lake guarantee that the latest version of the static delta table is returned each time it is queried in a join operation with a data stream.</details>
 
+<summary>databricks jobs list</summary>
+<details>https://docs.databricks.com/aws/en/dev-tools/cli/reference/jobs-commands
+The correct Databricks CLI command that allows a data engineer to list all runs of a job that started at or after a specific time is databricks jobs list-runs --job-id <job-id> --start-time-from <time-value>, as --start-time-from is the proper parameter used to filter job runs based on their start time in the Databricks CLI.
+</details>
+
+<summary>Files statistics in the Delta transaction log</summary>
+<details>Overall explanation
+In the Transaction log, Delta Lake captures statistics for each data file of the table. These statistics indicate per file:
+Total number of records
+Minimum value in each column of the first 32 columns of the table
+Maximum value in each column of the first 32 columns of the table
+Null value counts for in each column of the first 32 columns of the table
+When a query with a selective filter is executed against the table, the query optimizer uses these statistics to generate the query result. it leverages them to identify data files that may contain records matching the conditional filter.
+For the SELECT query in the question, The transaction log is scanned for min and max statistics for the price column.
+
+</details>
+
+<summary>Delta Lake automatically captures statistics</summary>
+<details>Delta Lake automatically captures statistics in the transaction log for each added data file of the table. By default, Delta Lake collects the statistics on the first 32 columns of each table. Nested fields count when determining the first 32 columns
+
+
+
+Example: 4 struct fields with 8 nested fields will total to the 32 columns.</details>
+
 <summary></summary>
 <details></details>
+
+<summary></summary>
+<details></details>
+
+<summary></summary>
+<details></details>
+
+<summary></summary>
+<details></details>
+
+<summary></summary>
+<details></details>
+
+<summary></summary>
+<details></details>
+
 <summary></summary>
 <details></details>
 
