@@ -138,7 +138,37 @@ Note: Databricks has recenlty open-sourced this solution, integrating it into th
 <summary>Predictive Optimization</summary>
 <details>Predictive Optimization in Databricks Unity Catalog automatically optimizes managed tables in Unity Catalog by:
 - Running background maintenance tasks like VACUUM, OPTIMIZE, and ANALYZE to reduce fragmentation and improve performance.
-- Collecting table statistics during writes, which helps the query optimizer make better decisions and improve query speed.</details>
+- Collecting table statistics during writes, which helps the query optimizer make better decisions and improve query speed.
+Instead of engineers manually running maintenance commands, Databricks:
+- Detects when a table needs tuning
+- Automatically runs the right operations
+- Avoids unnecessary work
+
+What it actually does : It automatically runs three key Delta Lake maintenance operations:
+1. OPTIMIZE
+ Compacts small files into larger ones
+ Improves query speed and data layout
+2. VACUUM
+ Deletes unused/old data files
+ Reduces storage costs
+3. ANALYZE
+ Updates table statistics
+ Helps the query optimizer make better decisions
+
+Requirements:
+- Premium plan
+- Supported region
+- Modern runtime / SQL warehouse
+
+Instead of static scheduling, Databricks:
+- Monitors data changes + query patterns
+- Predicts which tables need maintenance
+- Queues jobs automatically on serverless compute
+So it’s “predictive” because:
+- It decides when and where to optimize
+- Not just blindly running jobs every X hours
+
+</details>
 
 <summary>Job Run</summary>
 <details>
