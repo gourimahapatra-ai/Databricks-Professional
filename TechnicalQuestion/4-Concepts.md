@@ -567,19 +567,309 @@ delta.appendOnly = true
   - Skew  
   - Full scans  
 
----
-
 ## 🔷 One-line Memory Trick
 
 **Query Profile = “X-ray of your SQL query performance”**
 
----</details>
+</details>
 
-<summary></summary>
-<details></details>
+<summary>Databricks Deletion Vectors</summary>
+<details># Databricks Deletion Vectors – Concise Summary
+
+## 🔷 What are Deletion Vectors?
+
+- A **Delta Lake optimization feature**
+- Avoids rewriting entire Parquet files for row-level changes  
+- Instead of rewriting → **marks rows as deleted/updated**
+
+👉 Normal behavior:
+- DELETE → rewrite full file ❌  
+
+👉 With Deletion Vectors:
+- DELETE/UPDATE/MERGE → mark rows only ✅  
 
 
+## 🔷 Why they are used
 
+- Improve performance of:
+  - DELETE  
+  - UPDATE  
+  - MERGE  
+
+- Reduce:
+  - File rewrite cost  
+  - I/O overhead  
+
+👉 Reads apply these “marked changes” dynamically  
+
+## 🔷 How it works (Simple)
+
+1. Data stored in Parquet files  
+2. Instead of modifying file:
+   - Store **deletion vector (metadata)**  
+3. During read:
+   - System applies deletion vector  
+   - Shows correct data  
+
+👉 Think: **Soft delete instead of physical rewrite**
+
+## 🔷 When physical changes happen
+
+Data is actually rewritten only during:
+
+- `OPTIMIZE`  
+- Auto-compaction  
+- `REORG TABLE ... APPLY (PURGE)`  
+
+👉 Old data removed permanently using:
+
+```sql
+VACUUM table_name;</details>
+
+
+<summary>Making<\summary>
+<details>
+# Databricks Unity Catalog: Row Filters and Column Masks
+
+## Overview
+Row filters and column masks in Unity Catalog are used to control access to sensitive data at query time. They enable fine-grained data security without modifying the underlying tables.
+
+---
+
+## Row Filters
+
+### What are Row Filters?
+Row filters restrict which rows a user can access in a table based on defined conditions.
+
+- Evaluated at query time
+- Returns only rows that meet the condition
+- Used for **row-level security**
+
+### Example Use Cases
+- Restrict data by region (e.g., user sees only APAC data)
+- Limit access by department or account
+
+### Key Features
+- Defined using **SQL User-Defined Functions (UDFs)**
+- Can include Python or Scala logic (wrapped in SQL UDF)
+- One row filter per table
+- Can be applied:
+  - Per table
+  - Centrally via **ABAC policies**
+
+---
+
+## Column Masks
+
+### What are Column Masks?
+Column masks control what values users see in specific columns.
+
+- Applied at query time
+- Replaces actual column values with masked/transformed values
+- Used for **column-level security**
+
+### Example Use Cases
+- Mask email addresses
+- Hide SSN or sensitive identifiers
+- Show partial or obfuscated data
+
+### Key Features
+- Defined using **SQL UDFs**
+- Must return the same data type as the column
+- Can use other columns as inputs
+- One mask per column
+- Can be applied:
+  - Per table
+  - Via **ABAC policies**
+
+---
+
+## Row Filters vs Column Masks vs Dynamic Views
+
+| Feature        | Applies To | Managed Using | Naming Impact | Best Use Case |
+|----------------|-----------|--------------|--------------|--------------|
+| Dynamic Views  | Views     | SQL logic    | New object   | Multi-table filtering, data sharing |
+| Row Filters    | Tables    | ABAC / mapping tables | No change | Row-level access control |
+| Column Masks   | Columns   | ABAC / mapping tables | No change | Masking sensitive column data |
+
+### When to Use What
+- Use **Dynamic Views** for multi-table logic or sharing
+- Use **Row Filters & Column Masks** for direct table-level security
+
+---
+
+## How to Apply Filters and Masks
+
+### 1. Using ABAC Policies (Recommended)
+- Centralized governance using **governed tags**
+- Scales across catalogs and schemas
+- More secure (cannot be overridden by table owners)
+- Better performance
+
+### 2. Manual Assignment
+- Apply directly to tables/columns
+- Uses UDFs and mapping tables
+- More flexible but harder to maintain
+
+---
+
+## Performance Best Practices
+
+- Use **simple expressions** (avoid complex logic)
+- Avoid excessive column masks
+- Minimize function arguments
+- Avoid too many AND conditions in filters
+- Use **deterministic expressions**
+- Prefer **SQL UDFs over Python UDFs**
+- Test queries for performance impact
+
+---
+
+## Limitations
+
+- Not supported in runtimes below **12.2 LTS**
+- Cannot be applied to **views**
+- Not supported for **Managed Iceberg tables**
+- Not supported via:
+  - Delta Lake APIs
+  - Unity REST APIs
+- No support for:
+  - Time travel
+  - Table cloning
+  - Path-based access
+
+### Additional Constraints
+- Only **one row filter per table**
+- Each column can have **one mask**
+- Cannot reference tables that also have filters/masks
+- Limited support in MERGE, UPDATE, DELETE (based on runtime)
+
+---
+
+## Key Takeaways
+
+- Row filters = **control rows**
+- Column masks = **control column values**
+- Both operate **at query time**
+- Use **ABAC policies** for scalability and governance
+- Balance **security vs performance**
+
+---
+
+## References
+- Databricks Documentation (Unity Catalog Filters and Masks)
+
+# Databricks Unity Catalog - Commands (Row Filters & Column Masks)
+
+## 1. Create a Row Filter Function
+
+CREATE FUNCTION filter_by_region(region STRING)
+RETURN current_user() = 'admin' OR region = 'APAC';
+
+---
+
+## 2. Apply Row Filter to a Table
+
+ALTER TABLE sales_data
+SET ROW FILTER filter_by_region ON (region);
+
+---
+
+## 3. Drop Row Filter from Table
+
+ALTER TABLE sales_data
+DROP ROW FILTER;
+
+---
+
+## 4. Replace Existing Row Filter
+
+ALTER TABLE sales_data
+SET ROW FILTER new_filter_function ON (region);
+
+---
+
+## 5. Create a Column Mask Function
+
+CREATE FUNCTION mask_email(email STRING)
+RETURN CASE 
+    WHEN current_user() = 'admin' THEN email
+    ELSE '****@****.com'
+END;
+
+---
+
+## 6. Apply Column Mask to a Column
+
+ALTER TABLE customers
+ALTER COLUMN email
+SET MASK mask_email;
+
+---
+
+## 7. Drop Column Mask
+
+ALTER TABLE customers
+ALTER COLUMN email
+DROP MASK;
+
+---
+
+## 8. Replace Column Mask
+
+ALTER TABLE customers
+ALTER COLUMN email
+SET MASK new_mask_function;
+
+---
+
+## 9. Show Functions
+
+SHOW USER FUNCTIONS;
+
+---
+
+## 10. Describe Function
+
+DESCRIBE FUNCTION filter_by_region;
+
+---
+
+## 11. Drop Function
+
+DROP FUNCTION filter_by_region;
+
+---
+
+## 12. Check Applied Filters & Masks
+
+DESCRIBE TABLE EXTENDED sales_data;
+
+---
+
+## 13. Example with Multiple Columns in Mask
+
+CREATE FUNCTION mask_sensitive_data(email STRING, country STRING)
+RETURN CASE 
+    WHEN country = 'US' THEN email
+    ELSE 'REDACTED'
+END;
+
+ALTER TABLE customers
+ALTER COLUMN email
+SET MASK mask_sensitive_data;
+
+---
+
+## Notes
+
+- Only **one row filter per table**
+- Only **one mask per column**
+- Functions must return:
+  - BOOLEAN → for row filters
+  - SAME DATA TYPE → for column masks
+- Prefer **SQL UDFs** over Python UDFs for performance
+</details>
 
 
 
