@@ -255,10 +255,71 @@ Spark UI SQL query details page displays metrics such as duration, number of out
 
 </details>
 
-<summary></summary>
-<details># Databricks `ALTER TABLE ... SET TBLPROPERTIES` – Complete Guide
+<summary>Table Properties</summary>
+<details>
+# Databricks Delta Table Properties – Complete Guide
+## Core Properties
 
-## 🔷 1. Set Multiple Properties
+```sql
+'delta.appendOnly' = true,
+'delta.autoOptimize.optimizeWrite' = true,
+'delta.autoOptimize.autoCompact' = true
+```
+
+# 🔷 1. delta.appendOnly = true
+
+### 👉 Meaning
+- Only INSERT allowed , ❌ No UPDATE , ❌ No DELETE, ❌ No MERGE  
+
+### ✅ Use Cases
+- Bronze / Raw tables  
+- Audit logs  
+- Streaming ingestion  
+
+### 💡 Think
+“Do not modify existing data, only add new data”
+
+# 2. delta.autoOptimize.optimizeWrite = true
+
+### 👉 Meaning
+- Writes data in optimised file sizes automatically
+
+### 🚨 Problem it solves
+- Too many small files during write
+
+### ✅ Use Cases
+- Batch ingestion  
+- Streaming ingestion  
+
+### 💡 Think
+“Write data properly the first time”
+
+# 🔷 3. delta.autoOptimize.autoCompact = true
+
+### 👉 Meaning
+- Automatically merges small files after write
+
+### 🚨 Problem it solves
+- Small files → slow queries  
+
+### ✅ Use Cases
+- Frequent small data loads  
+- Streaming pipelines  
+
+### 💡 Think
+“Clean up small files after writing”
+
+# 🔷 Quick Difference
+
+| Property        | When it works   | Purpose            |
+|----------------|---------------|--------------------|
+| appendOnly     | Before change | Data safety        |
+| optimizeWrite  | During write  | Better file size   |
+| autoCompact    | After write   | Merge small files  |
+
+# 🔷 Other Important Variations
+
+## Set Multiple Properties
 
 ```sql
 ALTER TABLE bronze_raw 
@@ -269,18 +330,13 @@ SET TBLPROPERTIES (
 );
 ```
 
-**Use case:** Combine governance + performance settings
-
-## 🔷 2. Remove Properties
+## Remove Property
 
 ```sql
 ALTER TABLE bronze_raw 
 UNSET TBLPROPERTIES ('delta.appendOnly');
 ```
-
-**Note:** Removes property completely
-
-## 🔷 3. Set Property During Table Creation
+## Set During Table Creation
 
 ```sql
 CREATE TABLE bronze_raw (
@@ -291,120 +347,50 @@ USING DELTA
 TBLPROPERTIES ('delta.appendOnly' = true);
 ```
 
-**Best practice:** Define rules from the beginning
-
-
-## 🔷 4. Change Property Value
+## Change Property
 
 ```sql
 ALTER TABLE bronze_raw 
 SET TBLPROPERTIES ('delta.appendOnly' = false);
 ```
 
-**Use case:** Temporarily allow updates
-
-
-## 🔷 5. Performance Optimization Properties
-
-### Optimize Write
-
-```sql
-ALTER TABLE bronze_raw 
-SET TBLPROPERTIES ('delta.autoOptimize.optimizeWrite' = true);
-```
-
-* Improves file sizes during write
-
-### Auto Compaction
-
-```sql
-ALTER TABLE bronze_raw 
-SET TBLPROPERTIES ('delta.autoOptimize.autoCompact' = true);
-```
-
-* Merges small files automatically
-
-
-## 🔷 6. Data Retention
+# Data Retention
 
 ```sql
 ALTER TABLE bronze_raw 
 SET TBLPROPERTIES ('delta.deletedFileRetentionDuration' = '7 days');
 ```
 
-* Controls how long deleted files are kept
-
-Used with:
-
 ```sql
 VACUUM bronze_raw;
 ```
-
----
-
-## 🔷 7. Enable Change Data Feed (CDC)
+# Change Data Feed (CDC)
 
 ```sql
 ALTER TABLE bronze_raw 
 SET TBLPROPERTIES ('delta.enableChangeDataFeed' = true);
 ```
 
-**Use case:**
-
-* Track inserts, updates, deletes
-* Incremental pipelines
-
----
-
-## 🔷 8. Column Mapping (Advanced)
+# Column Mapping
 
 ```sql
 ALTER TABLE bronze_raw 
 SET TBLPROPERTIES ('delta.columnMapping.mode' = 'name');
 ```
 
-* Enables safe schema evolution
-* Required for column rename
-
-## 🔷 9. Log Retention
+# Log Retention
 
 ```sql
 ALTER TABLE bronze_raw 
 SET TBLPROPERTIES ('delta.logRetentionDuration' = '30 days');
 ```
 
-* Controls transaction log retention
-
-## 🔷 10. Governance Property Comparison
-
-### Append Only
-
-```sql
-'delta.appendOnly' = true
-```
-
-* Blocks UPDATE, DELETE, MERGE
-
-### Read-only
-
-* Managed via permissions (not TBLPROPERTIES)
-
-## 🔷 11. Compatibility Property
-
-```sql
-ALTER TABLE bronze_raw 
-SET TBLPROPERTIES ('delta.minReaderVersion' = '2');
-```
-
-* Ensures compatibility with advanced features
-
-## 🔷 12. View Properties
+# View Properties
 
 ```sql
 SHOW TBLPROPERTIES bronze_raw;
 ```
-
-## 🔷 13. Real-world Bronze Table Setup
+# Real-world Bronze Setup
 
 ```sql
 ALTER TABLE bronze_raw 
@@ -416,47 +402,178 @@ SET TBLPROPERTIES (
 );
 ```
 
-**Benefits:**
+# Categories
 
-* Immutability
-* Better performance
-* CDC tracking
+| Category          | Examples                          |
+|------------------|----------------------------------|
+| Governance       | delta.appendOnly                 |
+| Performance      | optimizeWrite, autoCompact       |
+| Retention        | deletedFileRetentionDuration     |
+| CDC              | enableChangeDataFeed             |
+| Schema Evolution | columnMapping                    |
 
-## 🔷 14. Categories of Properties
-
-| Category         | Examples                     |
-| ---------------- | ---------------------------- |
-| Governance       | delta.appendOnly             |
-| Performance      | optimizeWrite, autoCompact   |
-| Retention        | deletedFileRetentionDuration |
-| CDC              | enableChangeDataFeed         |
-| Schema Evolution | columnMapping                |
-
-## 🔷 15. Common Mistake
+# Common Mistake
 
 ❌ Wrong:
-
 ```sql
 delta.appendOnly = true
 ```
 
 ✅ Correct:
-
 ```sql
 'delta.appendOnly' = true
 ```
 
-## 🔷 Final Summary
+# Memory Trick
 
-* `SET TBLPROPERTIES` controls Delta table behavior
-* Used for governance, performance, retention, and streaming
-* `appendOnly` ensures immutability
-* Combine multiple properties for production-ready tables
-* 
+- appendOnly → Protect data  
+- optimizeWrite → Write better  
+- autoCompact → Fix later  
+
+# Final Summary
+
+- Controls Delta table behavior  
+- Used for governance, performance, retention  
+- Combine properties for production-ready tables  
+
 </details>
 
-<summary></summary>
-<details></details>
+<summary>Query Profile</summary>
+<details># Databricks Query Profile – Concise Summary
+
+## 🔷 What is Query Profile?
+
+- A **visual tool** to analyze query execution  
+- Helps identify **performance bottlenecks**  
+- Shows **operators, metrics, and execution flow** :contentReference[oaicite:0]{index=0}  
+
+---
+
+## 🔷 Why it is used
+
+- Find **slow parts of a query**  
+- Analyze **time, rows processed, memory usage**  
+- Detect issues like:
+  - Full table scans  
+  - Exploding joins :contentReference[oaicite:1]{index=1}  
+
+---
+
+## 🔷 How to Access
+
+1. Go to **Query History**
+2. Click a query
+3. Click **“See Query Profile”**
+
+👉 Requires:
+- Query owner OR  
+- `CAN MONITOR` permission :contentReference[oaicite:2]{index=2}  
+
+---
+
+## 🔷 Query Summary (Top Section)
+
+- Query status (Queued, Running, Finished, Failed)
+- User & compute details  
+- Query text  
+- Query metrics (scan, pruning, etc.)  
+- Wall-clock duration (total time)  
+- Aggregated task time (parallel execution time)  
+- Input / Output data details :contentReference[oaicite:3]{index=3}  
+
+---
+
+## 🔷 Query Profile View (Detailed)
+
+### Left Panel (Tabs)
+
+1. **Details**
+   - Summary metrics  
+
+2. **Top Operators**
+   - Most expensive operations  
+   - Helps optimization  
+
+3. **Query Text**
+   - Full SQL query  
+
+---
+
+### Right Panel (DAG View)
+
+- Shows **Directed Acyclic Graph (execution plan)**  
+- Visual flow of query execution  
+
+#### Common Operators:
+- **Scan** → Read data  
+- **Filter** → Apply conditions  
+- **Join** → Combine tables  
+- **Shuffle** → Data redistribution (expensive)  
+- **Aggregate (Hash/Sort)** → Grouping operations :contentReference[oaicite:4]{index=4}  
+
+---
+
+## 🔷 Key Metrics to Analyze
+
+- Time spent per operator  
+- Rows processed  
+- Memory usage  
+- Data scanned  
+- Data pruning percentage  
+
+👉 Helps identify:
+- Bottlenecks  
+- Inefficient operations  
+
+---
+
+## 🔷 Important Notes
+
+- Query profile **not available if query uses cache**  
+- Modify query slightly to bypass cache :contentReference[oaicite:5]{index=5}  
+
+---
+
+## 🔷 Sharing Query Profile
+
+- Share via **URL** (with permission)  
+- Download as **JSON file** :contentReference[oaicite:6]{index=6}  
+
+---
+
+## 🔷 Import Query Profile
+
+- Upload JSON file  
+- View profile locally (not persisted) :contentReference[oaicite:7]{index=7}  
+
+---
+
+## 🔷 Where Else You Can Access It
+
+- SQL Editor  
+- Notebooks  
+- Jobs UI  
+- Pipeline UI :contentReference[oaicite:8]{index=8}  
+
+---
+
+## 🔷 Interview Quick Points
+
+- Query Profile = **Execution analysis tool**  
+- Shows **DAG + metrics**  
+- Used for **performance tuning**  
+- Helps detect:
+  - Shuffle issues  
+  - Skew  
+  - Full scans  
+
+---
+
+## 🔷 One-line Memory Trick
+
+**Query Profile = “X-ray of your SQL query performance”**
+
+---</details>
 
 <summary></summary>
 <details></details>
