@@ -85,3 +85,246 @@ def customers():
 
 </details>
 
+<summary>Streaming Query</summary>
+<details>
+ # Databricks PySpark Data Processing Guide
+
+## Overview
+
+This document explains a common Databricks PySpark pattern for:
+
+* Reading data from a table
+* Filtering records
+* Removing duplicates
+* Writing results to another table
+
+## Original Code
+
+```python
+spark.table("stream_sink") \
+    .filter("recent = true") \
+    .dropDuplicates(["item_id", "item_timestamp"]) \
+    .write \
+    .mode("overwrite") \
+    .table("stream_data_stage")
+```
+
+## Step-by-Step Explanation
+
+### 1. Read Source Table
+
+Loads an existing table into a DataFrame.
+
+```python
+spark.table("stream_sink")
+```
+
+### 2. Filter Records
+
+Keeps only rows where `recent = true`.
+
+```python
+.filter("recent = true")
+```
+
+### 3. Remove Duplicates
+
+Removes duplicate rows based on a combination of columns.
+
+```python
+.dropDuplicates(["item_id", "item_timestamp"])
+```
+
+### 4. Write Data
+
+Writes the processed data into a target table.
+
+```python
+.write.mode("overwrite").table("stream_data_stage")
+```
+
+* `overwrite` replaces existing data
+
+## Equivalent SQL
+
+```sql
+CREATE OR REPLACE TABLE stream_data_stage AS
+SELECT *
+FROM (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY item_id, item_timestamp) AS rn
+    FROM stream_sink
+    WHERE recent = true
+) t
+WHERE rn = 1;
+```
+
+## Variations
+
+### Write Modes
+
+#### Append
+
+```python
+.write.mode("append").table("stream_data_stage")
+```
+
+#### Overwrite with Schema Change
+
+```python
+.write.mode("overwrite") \
+.option("overwriteSchema", "true") \
+.table("stream_data_stage")
+```
+
+#### Ignore
+
+```python
+.write.mode("ignore").table("stream_data_stage")
+```
+
+#### Error (Default)
+
+```python
+.write.mode("error").table("stream_data_stage")
+```
+
+## Using Column Expressions
+
+```python
+from pyspark.sql.functions import col
+
+spark.table("stream_sink") \
+    .filter(col("recent") == True) \
+    .dropDuplicates(["item_id", "item_timestamp"]) \
+    .write.mode("overwrite") \
+    .table("stream_data_stage")
+```
+
+## Selecting Specific Columns
+
+```python
+spark.table("stream_sink") \
+    .filter("recent = true") \
+    .select("item_id", "item_timestamp", "price") \
+    .dropDuplicates(["item_id", "item_timestamp"]) \
+    .write.mode("overwrite") \
+    .table("stream_data_stage")
+```
+
+## Partitioned Write
+
+```python
+.write \
+.partitionBy("item_timestamp") \
+.mode("overwrite") \
+.table("stream_data_stage")
+```
+
+## Advanced Deduplication (Latest Record)
+
+```python
+from pyspark.sql.window import Window
+from pyspark.sql.functions import row_number, col
+
+window = Window.partitionBy("item_id").orderBy(col("item_timestamp").desc())
+
+df = spark.table("stream_sink") \
+    .filter("recent = true") \
+    .withColumn("rn", row_number().over(window)) \
+    .filter("rn = 1") \
+    .drop("rn")
+
+df.write.mode("overwrite").table("stream_data_stage")
+```
+
+## Streaming Version
+
+```python
+spark.readStream.table("stream_sink") \
+    .filter("recent = true") \
+    .dropDuplicates(["item_id", "item_timestamp"]) \
+    .writeStream \
+    .outputMode("append") \
+    .toTable("stream_data_stage")
+```
+
+## Delta Merge (Upsert)
+
+```python
+from delta.tables import DeltaTable
+
+target = DeltaTable.forName(spark, "stream_data_stage")
+
+source_df = spark.table("stream_sink").filter("recent = true")
+
+target.alias("t").merge(
+    source_df.alias("s"),
+    "t.item_id = s.item_id AND t.item_timestamp = s.item_timestamp"
+).whenNotMatchedInsertAll().execute()
+```
+
+## Temporary View
+
+```python
+df = spark.table("stream_sink") \
+    .filter("recent = true") \
+    .dropDuplicates(["item_id", "item_timestamp"])
+
+df.createOrReplaceTempView("stream_data_stage")
+```
+
+## Best Practice Version
+
+```python
+from pyspark.sql.functions import col
+
+df = (
+    spark.table("stream_sink")
+    .filter(col("recent") == True)
+    .dropDuplicates(["item_id", "item_timestamp"])
+)
+
+df.write \
+    .format("delta") \
+    .mode("overwrite") \
+    .saveAsTable("stream_data_stage")
+```
+
+## Key Notes
+
+* `dropDuplicates()` keeps the first occurrence
+* `overwrite` deletes existing data completely
+* Use partitioning for performance optimization
+* Use window functions for deterministic deduplication
+
+## Summary
+
+This pipeline:
+
+1. Reads data from a source table
+2. Filters recent records
+3. Removes duplicates
+4. Writes clean data into a staging table
+
+
+</details>
+
+<summary></summary>
+<details></details>
+
+<summary></summary>
+<details></details>
+
+<summary></summary>
+<details></details>
+
+<summary></summary>
+<details></details>
+
+<summary></summary>
+<details></details>
+
+<summary></summary>
+<details></details>
+
